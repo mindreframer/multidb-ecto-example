@@ -30,9 +30,13 @@ defmodule Multidb.Repo do
 
   @doc """
   Returns the active repo module based on boot-time configuration.
+  Falls back to reading from env if not yet initialized (e.g., in Mix tasks).
   """
   def active_repo do
-    :persistent_term.get(@persistent_term_key)
+    case :persistent_term.get(@persistent_term_key, nil) do
+      nil -> init()  # Not initialized yet, initialize now
+      repo -> repo
+    end
   end
 
   # Delegate common Ecto.Repo functions to the active repo
