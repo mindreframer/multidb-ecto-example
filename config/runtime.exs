@@ -14,6 +14,8 @@ case db_adapter do
         _ -> System.get_env("DB_NAME", "multidb_dev")
       end
 
+    pool_size = if env == :test, do: 20, else: String.to_integer(System.get_env("POOL_SIZE", "10"))
+    
     config :multidb, Multidb.PostgresRepo,
       database: db_name,
       username: System.get_env("DB_USER", "postgres"),
@@ -21,7 +23,7 @@ case db_adapter do
       hostname: System.get_env("DB_HOST", "localhost"),
       port: String.to_integer(System.get_env("DB_PORT", "5432")),
       pool: Ecto.Adapters.SQL.Sandbox,
-      pool_size: String.to_integer(System.get_env("POOL_SIZE", "10"))
+      pool_size: pool_size
 
   "sqlite" ->
     db_path =
@@ -52,7 +54,9 @@ case db_adapter do
     config :multidb, Multidb.SqliteRepo,
       database: db_path,
       pool: pool,
-      pool_size: if(env == :test, do: 10, else: 5)
+      pool_size: if(env == :test, do: 10, else: 5),
+      # SQLite pragmas for better concurrency
+      after_connect: {Multidb.SqlitePragmas, :set_pragmas, []}
 
   other ->
     raise "Invalid DB_ADAPTER: #{other}. Valid values are: postgres, sqlite"

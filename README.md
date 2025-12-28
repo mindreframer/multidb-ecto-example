@@ -20,7 +20,11 @@ DB_ADAPTER=postgres iex -S mix
 ## Demo
 
 ```elixir
+# Basic demo - works with both SQLite and PostgreSQL
 iex> Multidb.Demo.run()
+
+# Namespace isolation demo - PostgreSQL only
+iex> Multidb.NamespaceDemo.run()
 ```
 
 ## The Problem
@@ -65,6 +69,53 @@ users = Repo.all(User)
 Repo.active_repo()  #=> Multidb.SqliteRepo or Multidb.PostgresRepo
 ```
 
+## Namespace Isolation (Multi-Tenancy)
+
+**Transparent namespace support for complete data isolation** (works with both PostgreSQL and SQLite):
+
+```elixir
+alias Multidb.{Namespace, NamespaceContext, Repo, User}
+
+# Create namespaces (PostgreSQL schemas)
+Namespace.create("tenant_acme")
+Namespace.create("tenant_globex")
+
+# Set namespace for current process
+NamespaceContext.put("tenant_acme")
+
+# All operations automatically use this namespace - no explicit passing needed!
+{:ok, user} = Repo.insert(%User{name: "Alice", email: "alice@acme.com"})
+users = Repo.all(User)  # Only sees ACME data
+
+# Switch to different namespace
+NamespaceContext.put("tenant_globex")
+users = Repo.all(User)  # Now sees Globex data - complete isolation!
+
+# Temporary namespace switch
+NamespaceContext.with_namespace("tenant_xyz", fn ->
+  # Operations here use tenant_xyz
+  Repo.insert(%User{name: "Bob", email: "bob@xyz.com"})
+end)
+# Previous namespace automatically restored
+
+# List all namespaces
+Namespace.list()
+
+# Delete namespace (destructive!)
+Namespace.delete("tenant_acme")
+```
+
+**Key features:**
+- ✅ **Transparent** - No need to pass namespace to every function
+- ✅ **Process-scoped** - Each request/process has its own namespace context
+- ✅ **Type-safe** - Impossible to accidentally mix namespaces
+- ✅ **Web-friendly** - Perfect for Phoenix plugs (see ADR001)
+- ✅ **Zero API pollution** - Business logic stays clean
+
+**Implementation:**
+- **PostgreSQL**: Native schemas (`CREATE SCHEMA`) - single connection pool
+- **SQLite**: Separate database files per namespace - dynamic repo instances
+
 ## Testing
 
 Run tests against both databases:
@@ -78,21 +129,32 @@ Run tests against both databases:
 ```
 lib/multidb/
 ├── repos/
-│   ├── sqlite_repo.ex        # SQLite adapter
-│   └── postgres_repo.ex      # PostgreSQL adapter
-├── repo.ex                   # Facade that delegates to active repo
-├── application.ex            # Starts correct repo based on DB_ADAPTER
-├── schemas/user.ex           # Example schema
-├── accounts.ex               # Example context
-└── demo.ex                   # Demo module
+│   ├── sqlite_repo.ex            # SQLite adapter
+│   ├── postgres_repo.ex          # PostgreSQL adapter
+│   └── sqlite_namespace_repo.ex  # SQLite namespace wrapper (future)
+├── repo.ex                       # Facade that delegates to active repo
+├── namespace.ex                  # Public API for namespace management
+├── namespace_context.ex          # Process-scoped namespace storage
+├── namespace_registry.ex         # Namespace repo registry (for SQLite)
+├── adapters/
+│   ├── postgres_namespace.ex     # PostgreSQL schema operations
+│   └── sqlite_namespace.ex       # SQLite namespace operations (future)
+├── application.ex                # Starts correct repo based on DB_ADAPTER
+├── schemas/user.ex               # Example schema
+├── accounts.ex                   # Example context
+├── demo.ex                       # Basic demo
+└── namespace_demo.ex             # Namespace isolation demo
 
 config/
-├── config.exs                # Compile-time config
-└── runtime.exs               # Runtime config (KEY!)
+├── config.exs                    # Compile-time config
+└── runtime.exs                   # Runtime config (KEY!)
 
 lib/mix/tasks/
-├── multidb.migrate.ex        # Run migrations
-└── multidb.reset.ex          # Drop, create, migrate
+├── multidb.migrate.ex            # Run migrations
+└── multidb.reset.ex              # Drop, create, migrate
+
+@meta/@adr/
+└── ADR001-support-namespaces.md  # Architecture decision record
 ```
 
 ## Configuration

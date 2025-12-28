@@ -13,7 +13,13 @@ defmodule Multidb.Application do
 
     children = [
       # Start the selected repo
-      repo
+      repo,
+      
+      # DynamicSupervisor for namespace-specific repos (SQLite)
+      {DynamicSupervisor, strategy: :one_for_one, name: Multidb.NamespaceSupervisor},
+      
+      # Namespace registry
+      Multidb.NamespaceRegistry
     ]
 
     opts = [strategy: :one_for_one, name: Multidb.Supervisor]

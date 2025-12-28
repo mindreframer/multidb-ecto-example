@@ -28,10 +28,10 @@ cond do
     Ecto.Migrator.run(repo, migrations_path, :up, all: true)
     
   true ->
-    # For PostgreSQL, just run migrations normally
+    # For PostgreSQL, migrations should already be run
+    # (by mix multidb.migrate in the test script)
     IO.puts("Setting up PostgreSQL database for tests...")
-    migrations_path = Path.join([:code.priv_dir(:multidb), "repo", "migrations"])
-    Ecto.Migrator.run(repo, migrations_path, :up, all: true)
+    # Don't run migrations here - they're run outside the test process
 end
 
 # Use :manual mode for sandbox - allows test isolation

@@ -15,11 +15,17 @@ NC='\033[0m'
 run_tests() {
   local adapter=$1
   local name=$2
+  local exclude_tag=$3
   
   echo -e "${BLUE}Testing with $name...${NC}"
   export DB_ADAPTER=$adapter
   
-  if MIX_ENV=test mix test; then
+  local test_cmd="MIX_ENV=test mix test"
+  if [ -n "$exclude_tag" ]; then
+    test_cmd="$test_cmd --exclude $exclude_tag"
+  fi
+  
+  if eval "$test_cmd"; then
     echo -e "${GREEN}✓ $name tests PASSED${NC}\n"
     return 0
   else
@@ -34,7 +40,7 @@ FAILED=0
 rm -f data/multidb_test.db*
 
 # Test with SQLite
-if ! run_tests "sqlite" "SQLite"; then
+if ! run_tests "sqlite" "SQLite" "postgres"; then
   FAILED=$((FAILED + 1))
 fi
 
@@ -45,13 +51,17 @@ if command -v psql &> /dev/null && psql -U postgres -lqt 2>/dev/null | grep -qw 
   echo "Resetting PostgreSQL test database..."
   dropdb -U postgres --if-exists multidb_test 2>&1 | grep -v "NOTICE" || true
   createdb -U postgres multidb_test 2>&1 | grep -v "NOTICE" || true
-  MIX_ENV=test mix multidb.migrate >/dev/null 2>&1
   
-  if ! run_tests "postgres" "PostgreSQL"; then
+  # Run migrations on test database
+  echo "Running migrations..."
+  DB_ADAPTER=postgres MIX_ENV=test mix multidb.migrate 2>&1 | grep -E "(Running|Migrated|completed)" || true
+  
+  if ! run_tests "postgres" "PostgreSQL" "sqlite"; then
     FAILED=$((FAILED + 1))
   fi
   
-  dropdb -U postgres --if-exists multidb_test
+  # Clean up
+  dropdb -U postgres --if-exists multidb_test 2>&1 | grep -v "NOTICE" || true
 else
   echo -e "${BLUE}PostgreSQL not available, skipping${NC}\n"
 fi
