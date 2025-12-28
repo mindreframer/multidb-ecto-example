@@ -35,12 +35,13 @@ config :myapp, MyApp.Repo,
 
 ## The Solution
 
-**Runtime configuration + facade pattern:**
+**Runtime configuration + facade pattern + persistent term optimization:**
 
 1. **Two separate Repo modules** - one per adapter
 2. **Dynamic facade** (`Multidb.Repo`) - delegates based on `DB_ADAPTER` env var  
 3. **Runtime config** (`config/runtime.exs`) - evaluated at startup, not compile time
 4. **Conditional supervision** - starts only the active repo
+5. **`:persistent_term` caching** - adapter choice stored once at boot for zero-overhead lookups
 
 ```elixir
 # Switch databases with environment variable
@@ -128,14 +129,28 @@ case db_adapter do
 end
 ```
 
-### Facade Pattern
+### Facade Pattern with Persistent Term
 
 ```elixir
 defmodule Multidb.Repo do
-  def active_repo do
-    case System.get_env("DB_ADAPTER", "sqlite") do
+  @persistent_term_key {__MODULE__, :active_repo}
+
+  # Called once at application boot
+  def init do
+    repo = case System.get_env("DB_ADAPTER", "sqlite") do
       "postgres" -> Multidb.PostgresRepo
       "sqlite" -> Multidb.SqliteRepo
+    end
+    
+    :persistent_term.put(@persistent_term_key, repo)
+    repo
+  end
+
+  # Fast, lock-free lookup from :persistent_term
+  def active_repo do
+    case :persistent_term.get(@persistent_term_key, nil) do
+      nil -> init()  # Fallback for Mix tasks
+      repo -> repo
     end
   end
 
@@ -147,15 +162,13 @@ defmodule Multidb.Repo do
 end
 ```
 
-### Conditional Supervision
+### Conditional Supervision with Initialization
 
 ```elixir
 defmodule Multidb.Application do
   def start(_type, _args) do
-    repo = case System.get_env("DB_ADAPTER", "sqlite") do
-      "postgres" -> Multidb.PostgresRepo
-      "sqlite" -> Multidb.SqliteRepo
-    end
+    # Initialize and cache the active repo in :persistent_term
+    repo = Multidb.Repo.init()
 
     children = [repo]
     Supervisor.start_link(children, strategy: :one_for_one)
@@ -163,18 +176,30 @@ defmodule Multidb.Application do
 end
 ```
 
+## Performance
+
+The facade pattern uses **`:persistent_term`** for near-zero overhead:
+
+- **Adapter selection**: Read once from env var at boot, cached in `:persistent_term`
+- **Per-query cost**: Single lock-free lookup (faster than reading env vars)
+- **Memory**: Minimal (~1 atom stored)
+- **GC impact**: None (`:persistent_term` data isn't copied during reads)
+
+This is significantly faster than checking `System.get_env/2` on every query.
+
 ## Why This Approach?
 
 **Advantages:**
 - True runtime switching without recompilation
 - Simple and explicit code
 - Full test coverage against both databases
-- Minimal overhead (~100ns per delegation)
+- Zero-overhead lookups via `:persistent_term` (lock-free, constant-time reads)
+- Adapter choice determined once at boot, not on every query
 
 **Trade-offs:**
 - Both adapters compiled into release (+~5MB)
 - Only one database active per instance
-- Small delegation overhead
+- Tiny delegation overhead (function call only)
 
 **Perfect for:**
 - Dev (SQLite) vs Production (PostgreSQL)
