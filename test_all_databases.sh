@@ -40,7 +40,7 @@ run_tests() {
 FAILED=0
 
 # Clean up old SQLite test database
-rm -f multidb_test.db*
+rm -f data/multidb_test.db*
 
 # Test with SQLite (file-based)
 echo "Using file-based SQLite for tests..."
@@ -49,7 +49,7 @@ if ! run_tests "sqlite" "SQLite (file-based)"; then
 fi
 
 # Clean up SQLite test database
-rm -f multidb_test.db*
+rm -f data/multidb_test.db*
 
 # Test with PostgreSQL (if available)
 echo "Checking if PostgreSQL is available..."
