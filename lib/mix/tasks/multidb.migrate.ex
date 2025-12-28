@@ -18,17 +18,16 @@ defmodule Mix.Tasks.Multidb.Migrate do
   def run(_args) do
     Mix.Task.run("app.config")
     
-    repo = Multidb.Repo.active_repo()
     adapter = System.get_env("DB_ADAPTER", "sqlite")
+    db_driver = String.to_atom(adapter)
     
-    IO.puts("Running migrations for #{adapter} (#{inspect(repo)})...")
+    IO.puts("Running migrations for #{adapter}...")
     
     # Start the repo
     {:ok, _} = Application.ensure_all_started(:multidb)
     
-    # Run migrations
-    migrations_path = Path.join([:code.priv_dir(:multidb), "repo", "migrations"])
-    Ecto.Migrator.run(repo, migrations_path, :up, all: true)
+    # Run migrations using precompiled modules
+    Multidb.MigrationRunner.run_for_default(db_driver, log: :info)
     
     IO.puts("Migrations completed for #{adapter}")
   end

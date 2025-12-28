@@ -71,16 +71,8 @@ defmodule Multidb.Adapters.PostgresNamespace do
   Runs migrations on a specific schema.
   """
   def run_migrations(namespace) when is_binary(namespace) do
-    migrations_path = Path.join([:code.priv_dir(:multidb), "repo", "migrations"])
-    
-    # Run migrations with prefix option
-    Ecto.Migrator.run(
-      PostgresRepo, 
-      migrations_path, 
-      :up, 
-      all: true, 
-      prefix: namespace
-    )
+    # Run migrations with prefix option using precompiled modules
+    Multidb.MigrationRunner.run_for_namespace(:postgres, namespace, log: false)
   end
   
   # Quote identifier to prevent SQL injection

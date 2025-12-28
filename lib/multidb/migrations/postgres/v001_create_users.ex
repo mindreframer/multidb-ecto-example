@@ -1,7 +1,7 @@
-defmodule Multidb.Repo.Migrations.CreateUsers do
+defmodule Multidb.Migrations.Postgres.V001CreateUsers do
   use Ecto.Migration
 
-  def change do
+  def up do
     create table(:users) do
       add :name, :string, null: false
       add :email, :string, null: false
@@ -11,5 +11,9 @@ defmodule Multidb.Repo.Migrations.CreateUsers do
     end
 
     create unique_index(:users, [:email])
+  end
+
+  def down do
+    drop table(:users)
   end
 end

@@ -139,15 +139,13 @@ defmodule Multidb.NamespaceRegistry do
   end
   
   defp run_migrations(repo_name, _db_path) do
-    migrations_path = Path.join([:code.priv_dir(:multidb), "repo", "migrations"])
-    
     try do
       # Set the dynamic repo to the namespace instance before running migrations
       Multidb.SqliteRepo.put_dynamic_repo(repo_name)
       
-      # Run migrations on the namespace database
+      # Run migrations on the namespace database using precompiled modules
       # Use log: false to reduce noise
-      Ecto.Migrator.run(Multidb.SqliteRepo, migrations_path, :up, all: true, log: false)
+      Multidb.MigrationRunner.run_for_namespace(:sqlite, nil, log: false)
     rescue
       error ->
         # Ignore errors - migrations may already be run or DB locked temporarily

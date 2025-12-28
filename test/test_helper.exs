@@ -15,17 +15,15 @@ cond do
     IO.puts("Setting up in-memory SQLite database for tests...")
     _owner_pid = Ecto.Adapters.SQL.Sandbox.start_owner!(repo, shared: true)
     
-    # Run migrations on this connection
-    migrations_path = Path.join([:code.priv_dir(:multidb), "repo", "migrations"])
-    Ecto.Migrator.run(repo, migrations_path, :up, all: true)
+    # Run migrations on this connection using precompiled modules
+    Multidb.MigrationRunner.run_for_default(:sqlite, log: false)
     
   db_adapter == "sqlite" ->
     # For file-based SQLite, ensure database exists and run migrations
     IO.puts("Setting up file-based SQLite database for tests...")
-    migrations_path = Path.join([:code.priv_dir(:multidb), "repo", "migrations"])
     
-    # Run migrations (will create database if it doesn't exist)
-    Ecto.Migrator.run(repo, migrations_path, :up, all: true)
+    # Run migrations (will create database if it doesn't exist) using precompiled modules
+    Multidb.MigrationRunner.run_for_default(:sqlite, log: false)
     
   true ->
     # For PostgreSQL, migrations should already be run
