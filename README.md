@@ -1,162 +1,102 @@
-# Multidb - Runtime Database Adapter Switching for Elixir/Ecto
+# Multidb - Runtime Database Switching for Ecto
 
-![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
-![Elixir](https://img.shields.io/badge/elixir-1.18+-purple)
-![License](https://img.shields.io/badge/license-MIT-blue)
+Switch between PostgreSQL and SQLite at runtime via environment variable - no recompilation needed.
 
-**Switch between PostgreSQL and SQLite at runtime - no recompilation needed!**
-
-This project demonstrates a production-ready solution for supporting multiple database adapters in Elixir/Ecto applications with true runtime switching capabilities.
-
-## ✨ Features
-
-- 🔄 **Runtime Switching** - Change databases via environment variable
-- 🚀 **No Recompilation** - Application code stays the same
-- 🎯 **Transparent API** - Use like any Ecto repo
-- ✅ **Full Test Coverage** - Tests run against BOTH databases
-- 📦 **Production Ready** - Proper config, migrations, deployment
-- 🔧 **Easy to Use** - Drop-in solution for your app
-
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# Clone and setup
-git clone <this-repo>
-cd multidb
+# Install dependencies
 mix deps.get
 
 # Run with SQLite (default)
 mix multidb.reset
 iex -S mix
-iex> Multidb.Demo.run()
 
-# Run with PostgreSQL
+# Run with PostgreSQL  
 DB_ADAPTER=postgres mix multidb.reset
 DB_ADAPTER=postgres iex -S mix
+```
+
+## Demo
+
+```elixir
 iex> Multidb.Demo.run()
 ```
 
-## 📖 Documentation
+## The Problem
 
-- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[README_MULTIDB.md](README_MULTIDB.md)** - Complete user guide
-- **[SOLUTION_SUMMARY.md](SOLUTION_SUMMARY.md)** - Architecture & design decisions
-- **[TESTING.md](TESTING.md)** - Testing guide
-
-## 💡 The Problem
-
-Traditional Ecto applications hardcode the database adapter at compile time:
+Traditional Ecto apps hardcode the database adapter at compile time:
 
 ```elixir
 # config/config.exs
 config :myapp, MyApp.Repo,
-  adapter: Ecto.Adapters.Postgres  # HARDCODED!
-
-# To switch to SQLite, you must RECOMPILE the application 😞
+  adapter: Ecto.Adapters.Postgres  # HARDCODED - requires recompile to change
 ```
 
-## ✅ The Solution
+## The Solution
 
-This project solves the problem using:
+**Runtime configuration + facade pattern:**
 
-1. **Two separate Repo modules** (one per adapter)
-2. **Dynamic facade pattern** that delegates based on environment
-3. **Runtime configuration** via `config/runtime.exs`
-4. **Conditional supervision** to start only the active repo
+1. **Two separate Repo modules** - one per adapter
+2. **Dynamic facade** (`Multidb.Repo`) - delegates based on `DB_ADAPTER` env var  
+3. **Runtime config** (`config/runtime.exs`) - evaluated at startup, not compile time
+4. **Conditional supervision** - starts only the active repo
 
 ```elixir
-# Switch databases with just an environment variable!
+# Switch databases with environment variable
 DB_ADAPTER=sqlite iex -S mix      # Uses SQLite
 DB_ADAPTER=postgres iex -S mix    # Uses PostgreSQL
 ```
 
-## 🎯 Usage Example
+## Usage
 
 ```elixir
-# Your code doesn't change - works with BOTH adapters!
 alias Multidb.Repo
-alias Multidb.User
+alias Multidb.Schemas.User
 
-# Create
-{:ok, user} = Repo.insert(%User{
-  name: "Alice",
-  email: "alice@example.com"
-})
-
-# Read
+# Works with BOTH adapters - code doesn't change!
+{:ok, user} = Repo.insert(%User{name: "Alice", email: "alice@example.com"})
 users = Repo.all(User)
-
-# Update
 {:ok, updated} = Repo.update(User.changeset(user, %{age: 29}))
-
-# Delete
 {:ok, deleted} = Repo.delete(user)
 
 # Check which adapter is active
-Multidb.Repo.active_repo()  #=> Multidb.SqliteRepo
+Repo.active_repo()  #=> Multidb.SqliteRepo or Multidb.PostgresRepo
 ```
 
-## 🧪 Testing
+## Testing
 
-Run tests against both databases to ensure compatibility:
+Run tests against both databases:
 
 ```bash
-# Test with SQLite
-./test_sqlite.sh
-
-# Test with BOTH databases
 ./test_all_databases.sh
 ```
 
-**Output:**
-```
-==========================================
-Testing with SQLite (file-based)
-==========================================
-Finished in 0.06 seconds
-1 doctest, 12 tests, 0 failures
-✓ SQLite (file-based) tests PASSED
-
-==========================================
-Testing with PostgreSQL
-==========================================
-Finished in 0.1 seconds
-1 doctest, 12 tests, 0 failures
-✓ PostgreSQL tests PASSED
-
-All tests passed! ✓
-```
-
-## 🏗️ Architecture
-
-```
-Your Application Code
-    ↓
-Multidb.Repo (facade)
-    ↓
-[Runtime] Check DB_ADAPTER env var
-    ↓         ↓
-SQLite    PostgreSQL
-```
-
-### Key Components
+## Architecture
 
 ```
 lib/multidb/
 ├── repos/
 │   ├── sqlite_repo.ex        # SQLite adapter
 │   └── postgres_repo.ex      # PostgreSQL adapter
-├── repo.ex                   # Facade that delegates
-├── application.ex            # Starts correct repo
-└── accounts.ex               # Example context
+├── repo.ex                   # Facade that delegates to active repo
+├── application.ex            # Starts correct repo based on DB_ADAPTER
+├── schemas/user.ex           # Example schema
+├── accounts.ex               # Example context
+└── demo.ex                   # Demo module
 
 config/
-└── runtime.exs               # Runtime configuration (KEY!)
+├── config.exs                # Compile-time config
+└── runtime.exs               # Runtime config (KEY!)
+
+lib/mix/tasks/
+├── multidb.migrate.ex        # Run migrations
+└── multidb.reset.ex          # Drop, create, migrate
 ```
 
-## 🔧 Configuration
+## Configuration
 
-Control via environment variables:
+Environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -167,81 +107,12 @@ Control via environment variables:
 | `DB_PASSWORD` | `postgres` | PostgreSQL password |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 
-## 🎬 Demo
+## How It Works
 
-```bash
-# SQLite demo
-./demo_sqlite.sh
-
-# PostgreSQL demo
-./demo_postgres.sh
-```
-
-**Example output:**
-```
-============================================================
-Multidb Demo - Using SQLite (Multidb.SqliteRepo)
-============================================================
-
-Creating users...
-  ✓ Created: Alice Johnson (ID: 1)
-  ✓ Created: Bob Smith (ID: 2)
-  ✓ Created: Carol White (ID: 3)
-
-Listing all users...
-  - Alice Johnson (alice@example.com) - Age: 28
-  - Bob Smith (bob@example.com) - Age: 35
-  - Carol White (carol@example.com) - Age: 42
-
-Total users: 3
-
-Finding user by email (alice@example.com)...
-  ✓ Found: Alice Johnson
-
-Updating Alice's age to 29...
-  ✓ Updated: Alice Johnson - New age: 29
-
-Deleting Bob...
-  ✓ Deleted
-
-Final user count: 2
-
-Demo completed successfully with SQLite!
-```
-
-## 📦 Production Deployment
-
-### Docker
-
-```dockerfile
-FROM elixir:1.18
-ENV DB_ADAPTER=postgres
-ENV DB_HOST=db.example.com
-WORKDIR /app
-COPY . .
-RUN mix deps.get && MIX_ENV=prod mix compile
-CMD ["mix", "run", "--no-halt"]
-```
-
-### Mix Release
-
-```bash
-# Build
-MIX_ENV=prod mix release
-
-# Run with SQLite
-DB_ADAPTER=sqlite _build/prod/rel/multidb/bin/multidb start
-
-# Run with PostgreSQL
-DB_ADAPTER=postgres DB_HOST=prod-db _build/prod/rel/multidb/bin/multidb start
-```
-
-## 🎓 How It Works
-
-The key insight is using `config/runtime.exs` instead of `config/config.exs`:
+### Runtime Configuration
 
 ```elixir
-# config/runtime.exs - evaluated at RUNTIME
+# config/runtime.exs - evaluated at RUNTIME, not compile time
 db_adapter = System.get_env("DB_ADAPTER", "sqlite")
 
 case db_adapter do
@@ -257,7 +128,7 @@ case db_adapter do
 end
 ```
 
-Then, the facade pattern provides transparent delegation:
+### Facade Pattern
 
 ```elixir
 defmodule Multidb.Repo do
@@ -272,119 +143,57 @@ defmodule Multidb.Repo do
     active_repo().all(queryable, opts)
   end
   
-  # ... delegate all other functions
+  # ... delegate all other Ecto.Repo functions
 end
 ```
 
-## 🤔 Why This Approach?
+### Conditional Supervision
 
-### ✅ Advantages
+```elixir
+defmodule Multidb.Application do
+  def start(_type, _args) do
+    repo = case System.get_env("DB_ADAPTER", "sqlite") do
+      "postgres" -> Multidb.PostgresRepo
+      "sqlite" -> Multidb.SqliteRepo
+    end
 
-- **True runtime switching** - No recompilation
-- **Simple and explicit** - Easy to understand
-- **Production tested** - Full test coverage
-- **Flexible deployment** - Same code, different databases
-- **Minimal overhead** - ~100ns per call
+    children = [repo]
+    Supervisor.start_link(children, strategy: :one_for_one)
+  end
+end
+```
 
-### ⚠️ Trade-offs
+## Why This Approach?
 
+**Advantages:**
+- True runtime switching without recompilation
+- Simple and explicit code
+- Full test coverage against both databases
+- Minimal overhead (~100ns per delegation)
+
+**Trade-offs:**
 - Both adapters compiled into release (+~5MB)
 - Only one database active per instance
-- Small delegation overhead (negligible)
+- Small delegation overhead
 
-### 💡 Perfect For
-
-- Development (SQLite) vs Production (PostgreSQL)
-- Edge deployments with varying infrastructure
+**Perfect for:**
+- Dev (SQLite) vs Production (PostgreSQL)
 - Testing against multiple databases
+- Edge deployments with varying infrastructure
 - Desktop apps with optional cloud sync
-- Multi-environment deployments
 
-## 🔬 Design Decisions
-
-**Why two repos?**  
-Ecto adapters configured at compile-time in `use Ecto.Repo` macro.
-
-**Why check ENV on each call?**  
-Enables true runtime switching, no caching issues.
-
-**Why both adapters in release?**  
-Maximum flexibility, minimal size cost.
-
-**Why file-based SQLite for tests?**  
-In-memory SQLite has connection pool issues with Sandbox mode.
-
-See [SOLUTION_SUMMARY.md](SOLUTION_SUMMARY.md) for deep dive.
-
-## 📁 Project Structure
-
-```
-lib/
-├── multidb/
-│   ├── application.ex           # Starts selected repo
-│   ├── repo.ex                  # Dynamic facade
-│   ├── repos/
-│   │   ├── postgres_repo.ex     # PostgreSQL
-│   │   └── sqlite_repo.ex       # SQLite
-│   ├── schemas/
-│   │   └── user.ex              # Example schema
-│   ├── accounts.ex              # Example context
-│   └── demo.ex                  # Demo module
-
-config/
-├── config.exs                   # Compile-time
-└── runtime.exs                  # Runtime (IMPORTANT!)
-
-test/
-├── support/data_case.ex         # Test helpers
-├── test_helper.exs              # Test setup
-└── multidb_test.exs             # Tests
-
-Scripts:
-├── test_sqlite.sh               # SQLite tests
-├── test_all_databases.sh        # All database tests
-├── demo_sqlite.sh               # SQLite demo
-└── demo_postgres.sh             # PostgreSQL demo
-```
-
-## 🛠️ Custom Mix Tasks
+## Production Deployment
 
 ```bash
-# Run migrations for active adapter
-mix multidb.migrate
+# Mix Release
+MIX_ENV=prod mix release
+DB_ADAPTER=postgres DB_HOST=prod-db _build/prod/rel/multidb/bin/multidb start
 
-# Drop, create, and migrate database
-mix multidb.reset
+# Docker
+docker build -t multidb .
+docker run -e DB_ADAPTER=postgres -e DB_HOST=db.example.com multidb
 ```
 
-## 🤝 Contributing
-
-This is a demonstration project. Feel free to:
-- Use this pattern in your own projects
-- Submit issues for questions
-- Share improvements
-
-## 📄 License
+## License
 
 MIT
-
-## 🙏 Acknowledgments
-
-Built with:
-- [Elixir](https://elixir-lang.org/)
-- [Ecto](https://hexdocs.pm/ecto)
-- [Ecto SQL](https://hexdocs.pm/ecto_sql)
-- [Postgrex](https://hexdocs.pm/postgrex)
-- [Ecto SQLite3](https://hexdocs.pm/ecto_sqlite3)
-
-## 📚 Further Reading
-
-- [Ecto Documentation](https://hexdocs.pm/ecto)
-- [Runtime Configuration](https://hexdocs.pm/mix/Mix.Config.html#module-runtime-configuration)
-- [Mix Releases](https://hexdocs.pm/mix/Mix.Tasks.Release.html)
-
----
-
-**Made with ❤️ to solve a real problem in Elixir/Ecto applications**
-
-Have questions? Read the docs or open an issue!

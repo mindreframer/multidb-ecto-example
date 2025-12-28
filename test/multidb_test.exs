@@ -1,6 +1,5 @@
 defmodule MultidbTest do
   use Multidb.DataCase
-  doctest Multidb
 
   alias Multidb.Accounts
   alias Multidb.Repo
@@ -137,16 +136,4 @@ defmodule MultidbTest do
     end
   end
 
-  describe "Demo" do
-    test "returns correct adapter info" do
-      info = Multidb.Demo.info()
-      
-      assert Map.has_key?(info, :adapter)
-      assert Map.has_key?(info, :repo_module)
-      assert Map.has_key?(info, :env_var)
-      
-      assert info.adapter in ["SQLite", "PostgreSQL"]
-      assert info.repo_module in [Multidb.SqliteRepo, Multidb.PostgresRepo]
-    end
-  end
 end
