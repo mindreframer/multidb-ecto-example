@@ -5,19 +5,10 @@ defmodule Multidb.Application do
 
   @impl true
   def start(_type, _args) do
-    # Determine which repo to start based on environment variable
-    db_adapter = System.get_env("DB_ADAPTER", "sqlite")
+    # Initialize and store the active repo in :persistent_term for fast access
+    repo = Multidb.Repo.init()
     
-    repo = case db_adapter do
-      "postgres" -> Multidb.PostgresRepo
-      "sqlite" -> Multidb.SqliteRepo
-      other ->
-        raise """
-        Invalid DB_ADAPTER: #{other}
-        Valid values are: postgres, sqlite
-        """
-    end
-
+    db_adapter = System.get_env("DB_ADAPTER", "sqlite")
     IO.puts("Starting Multidb with #{db_adapter} adapter (#{inspect(repo)})")
 
     children = [

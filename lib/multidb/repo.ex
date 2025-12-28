@@ -3,15 +3,18 @@ defmodule Multidb.Repo do
   Dynamic Repo facade that delegates to the appropriate backend
   based on the DB_ADAPTER environment variable.
   
-  Set DB_ADAPTER=postgres or DB_ADAPTER=sqlite at runtime.
+  Set DB_ADAPTER=postgres or DB_ADAPTER=sqlite at boot time.
   Defaults to SQLite if not set.
   """
 
+  @persistent_term_key {__MODULE__, :active_repo}
+
   @doc """
-  Returns the active repo module based on runtime configuration.
+  Initialize the active repo selection and store it in :persistent_term.
+  This should be called once during application startup.
   """
-  def active_repo do
-    case System.get_env("DB_ADAPTER", "sqlite") do
+  def init do
+    repo = case System.get_env("DB_ADAPTER", "sqlite") do
       "postgres" -> Multidb.PostgresRepo
       "sqlite" -> Multidb.SqliteRepo
       other -> 
@@ -20,6 +23,16 @@ defmodule Multidb.Repo do
         Valid values are: postgres, sqlite
         """
     end
+    
+    :persistent_term.put(@persistent_term_key, repo)
+    repo
+  end
+
+  @doc """
+  Returns the active repo module based on boot-time configuration.
+  """
+  def active_repo do
+    :persistent_term.get(@persistent_term_key)
   end
 
   # Delegate common Ecto.Repo functions to the active repo
